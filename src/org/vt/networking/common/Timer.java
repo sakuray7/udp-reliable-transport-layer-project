@@ -1,73 +1,49 @@
 package org.vt.networking.common;
 
-public class Timer implements Runnable{
-	private long timeOut = 10;
-	private long currentTimeStamp = 0;
-	private long beginTimeStamp = 0;
-	private boolean timeReset = false;
-	private static long lastSegmentSendTimeStamp = 0;
-	private ReliableTransportLayer rtl;
-	
-	
-	public Timer(ReliableTransportLayer reliableTransprotLayer)
-	{
-		rtl =  reliableTransprotLayer;
-	}
-	
-	
-	public void resetTimer()
-	{
-		timeReset = true;
-	}
-	
-	public void close()
-	{
-		this.close();
-	}
-	
-	public void resendUnAckSegments()
-	{
-		
-			System.out.println("Time Out Happen");
-			rtl.resentTimeoutDatasegment();
-		
-	}
-	
-	public void process()
-	{
-		while(true)
-		{
-			beginTimeStamp = System.currentTimeMillis();
-			int timeRemain = (int) (timeOut - (System.currentTimeMillis() - beginTimeStamp)); 
-			timeReset = false;
-			for(int i= timeRemain; i>=0; i--)
-			{
-				if(timeReset)
-				{
-					System.out.println("timer----Reset");
-					break;
-				}
-				try {
-						Thread.sleep(1);
-				} catch (InterruptedException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
-				}
-			}
-			
-			if(!timeReset)
-			{
-				resendUnAckSegments();
-			}
-		}
-	}
-	
-	
-	
-	@Override
-	public void run() {
-		// TODO Auto-generated method stub
-//		process();
-	}
+import java.util.TimerTask;
 
+/**
+ * 
+ * @author Wei Wang, Sunil
+ * Timer class used to schedule and reschedule the timerTask
+ * to resent segments
+ */
+
+public class Timer  {
+	private ResentSegmentTimerTask timerTask;
+	private java.util.Timer timer = new java.util.Timer();
+	private int i = 0;
+	private ReliableTransportLayer reliableTransportLayer;
+	
+	public Timer(ReliableTransportLayer rtl)
+	{
+		this.reliableTransportLayer = rtl;
+	}
+	public void start(long timeOut)
+	{
+		timerTask = new ResentSegmentTimerTask(reliableTransportLayer);
+		timer.schedule(timerTask, timeOut,timeOut);
+	}
+	
+	public void reStart(long timeOut)
+	{
+		timerTask.cancel();
+		start(timeOut);
+	}
+	
+	public synchronized void execute(long timeOut)
+	{
+		if(timerTask!=null)
+		{
+			timerTask.cancel();
+		}
+		timerTask = new ResentSegmentTimerTask(reliableTransportLayer);
+		timer.schedule(timerTask,timeOut,timeOut);
+	}
+	
+	public void cancel()
+	{
+		timer.cancel();
+	}
+	
 }

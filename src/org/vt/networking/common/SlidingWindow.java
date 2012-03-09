@@ -7,12 +7,19 @@ import java.util.Map;
 
 public class SlidingWindow {
 
+	
 	//The Maximum window size.
-	public static final int MAX_ACK_RECEIVE_SIZE = 16;
+	public static final int WINDOW_SIZE = DataConfig.WINDOW_SIZE;
 	private static SlidingWindow slidingWindow;
+	private int baseNum = 0;
+	private int nextSeqNum = 0;
+	private int maxSeqNum = DataConfig.MAX_SEQ_SIZE;
+	private int lastAckSeq = -1;
+	private Object lockObject; 
 	
 	private  Map<Integer,DataSegment> window = getWinowInstance();
 		
+	
 	public static synchronized SlidingWindow getInstance()
 	{
 		if(slidingWindow == null)
@@ -25,21 +32,9 @@ public class SlidingWindow {
 	private  SlidingWindow()
 	{
 		super();
+		lockObject = new Object();
 	}
 	
-	public  boolean checkWindowFull()
-	{
-		System.out.println("Current Window size: " + window.size());
-		
-		if(window.size() == MAX_ACK_RECEIVE_SIZE)
-		{
-			//System.out.println(window.size()+ ":");
-			return true;
-		}
-		else {
-			return false;
-		}
-	}
 	
 	public  synchronized Map<Integer,DataSegment> getWinowInstance()
 	{
@@ -50,71 +45,12 @@ public class SlidingWindow {
 		return window;
 	}
 	
-	public  synchronized Map<Integer,DataSegment> getUnackSegments()
+	public synchronized Map<Integer,DataSegment> getUnackSegments()
 	{
 		return window;
 	}
-	
-	public  void windowWait()
-	{
-		synchronized(window)
-		{
-			try {
-				window.wait();
-			} catch (InterruptedException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}
-		}
-	}
-	
-	
-	
-	//REWRITING THE CODE
-	public   void removeAckFromWindow(int ackSeqNum)
-	{
-		synchronized(window)
-		{
-			System.out.println("ACK Sequence number is:" + ackSeqNum);
-			//TODO:Change, this not good code.
-			for(int j=0; j < MAX_ACK_RECEIVE_SIZE; j++) {
-				window.remove(ackSeqNum - j);
-			}
-			
-			//Special case of sequence number being -1
-			//In this scenario, if the previous message has been completely received, 
-			//then the value is set to -1 and we can clear our cache.
-			if(ackSeqNum == -1) {
-				System.out.println("ACK Sequence number is -1");
-				//Get hold of the last few packets sequence numbers.
-				int maxSequenceNum = (int) (Math.ceil(DataConfig.MESSAGE_MAX_SIZE/DataConfig.UDP_MAX_SIZE));
-				for(int j = 0; j < MAX_ACK_RECEIVE_SIZE; j++) {
-					window.remove(maxSequenceNum - j);
-				}
-				
-				if(!window.isEmpty()) {
-					ArrayList<Number> unremovedKeys = new ArrayList<Number>();
-					for (Number key : window.keySet()) {
-						DataSegment ds = window.get(key);
-						System.out.println("Key: " + key);
-						if(ds.getIfLast() == DataConfig.IS_LAST) {
-							unremovedKeys.add(key);
-						}
-					}
-					for (Number key : unremovedKeys) {
-						window.remove(key);
-					}
-				}
-			}
-			
-			if(!checkWindowFull())
-			{
-				
-					window.notify();
-			}
-		}
-	
-	}
+		
+
 	
 	//put segment into window
 	public  void putSegmentIntoMap(int seqNum, DataSegment ds)
@@ -125,12 +61,117 @@ public class SlidingWindow {
 		}
 	}
 	
+	
+	//modified RemoveElement from Window
+	public void removeSegment(int seqNum)
+	{
+		int currentUnAckNum = (this.nextSeqNum+this.maxSeqNum-this.baseNum)%this.maxSeqNum;
+		if(this.baseNum+currentUnAckNum>this.maxSeqNum)
+		{
+			if(seqNum<this.baseNum&&seqNum>=(this.baseNum+currentUnAckNum)%this.maxSeqNum)
+			{
+				//the seqNum is not in current unAck scope just discard it
+				//do nothing
+			}
+			else
+			{
+				for(int i=0; i<currentUnAckNum;i++)
+				{
+					window.remove(this.baseNum+i);
+					if((this.baseNum+i)%this.maxSeqNum==seqNum)
+					{
+						break;
+					}
+				}
+				this.baseNum = (seqNum+1)%this.maxSeqNum;
+				this.lastAckSeq = (this.baseNum+this.maxSeqNum-1)%this.maxSeqNum;
+				windowWakeup();
+			}
+			
+		}
+		else
+		{
+			if(seqNum>=this.baseNum&&seqNum<=(this.baseNum+currentUnAckNum-1))
+			{
+				for(int i=this.baseNum;i<=seqNum;i++)
+				{
+					window.remove(i);
+				}
+				this.baseNum = (seqNum+1)%this.maxSeqNum;
+				this.lastAckSeq = (this.baseNum+this.maxSeqNum-1)%this.maxSeqNum;
+				windowWakeup();
+			}
+			else
+			{
+				//the seqNum is not in current unAck scope just discard it
+				//do nothing
+			}
+		}
+		
+	}
+
+	//modified addElement into window
+	public void addSegment(int seqNum, DataSegment inDataSegment)
+	{
+		if(checkWindowFull())
+		{
+			windowWait();
+		}
+		window.put(seqNum, inDataSegment);
+		this.nextSeqNum = (seqNum + 1)%this.maxSeqNum;
+	}
+	
+	//lock the lockObject to wait
+	public void windowWait()
+	{
+		synchronized(lockObject)
+		{
+			try {
+					System.out.println("Go into Waiting!");
+					this.lockObject.wait();
+			} catch (InterruptedException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+		}
+	}
+	
+	//wake up the locked object
 	public  void windowWakeup()
 	{
-		synchronized(window)
+		synchronized(lockObject)
 		{
-			window.notify();
+			lockObject.notify();
 		}
+	}
+	//check window is full
+	public  boolean checkWindowFull()
+	{
+		int currentUnAckNum = (this.nextSeqNum+this.maxSeqNum-this.baseNum)%this.maxSeqNum;
+		if(currentUnAckNum>=this.WINDOW_SIZE)
+		{
+			return true;
+		}
+		else
+		{
+			return false;
+		}
+	}
+	
+	public int getBaseNum() {
+		return baseNum;
+	}
+
+	public void setBaseNum(int baseNum) {
+		this.baseNum = baseNum;
+	}
+
+	public int getNextSeqNum() {
+		return nextSeqNum;
+	}
+
+	public int getLastAckSeq() {
+		return lastAckSeq;
 	}
 	
 }

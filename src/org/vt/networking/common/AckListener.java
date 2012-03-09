@@ -4,36 +4,54 @@ import java.net.DatagramPacket;
 
 
 public class AckListener implements Runnable{
-	private UDPWrapper udpWrapper;
-	public AckListener(UDPWrapper udpWrapper)
+	private ReliableTransportLayer reliableTransportLayer;
+	private int currentCheckSeq=0;
+	private int currentCheckTimes=0;   
+	
+	public AckListener(ReliableTransportLayer reliableTransportLayer)
 	{
-		this.udpWrapper = udpWrapper;
+		this.reliableTransportLayer = reliableTransportLayer;
 	}
 	
-	public DataSegment waitACKResponse() throws Exception
-	{	
-		DatagramPacket dp = udpWrapper.receiveFrom();
-		byte[] receviedBytes = dp.getData();
-		DataSegment receivedDS = new DataSegment(receviedBytes);
-		return receivedDS;
+	
+	public void fastRetransmit()
+	{
+		//if acklistener has received the lastHasAckSeq triple times,
+		//then retrasnmit current unack segments at once before timeout
+		System.out.println("Tripple ACK Happen");
+		reliableTransportLayer.resentTimeoutDatasegment();
 	}
 	
 	public void processAck() throws Exception
 	{
 		while(true)
 		{
-			DataSegment ack = waitACKResponse();
+			DataSegment ack = reliableTransportLayer.receiveSegment();
 			int seq = ack.getSeqnum();
-			SlidingWindow.getInstance().removeAckFromWindow(seq);
-//			char ifLast = ack.getIfLast();
-//			if(ifLast == '1')
-//			{
-//				synchronized(ReliableTransportLayer.blockFlag)
-//				{
-//					ReliableTransportLayer.blockFlag.notify();
-//				}
-//			}
+			SlidingWindow.getInstance().removeSegment(seq);
+			if(checkIfTripleAck(seq))
+			{
+				fastRetransmit();
+			}
 		}
+	}
+	
+	public boolean checkIfTripleAck(int seq)
+	{
+		currentCheckSeq = SlidingWindow.getInstance().getLastAckSeq();
+		if(seq==currentCheckSeq)
+		{
+			currentCheckTimes++;
+		}
+		else 
+		{
+			currentCheckTimes=0;
+		}
+		if(currentCheckTimes==3)
+		{
+			return true;
+		}
+		return false;
 	}
 	
 	

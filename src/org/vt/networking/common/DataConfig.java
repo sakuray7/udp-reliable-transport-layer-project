@@ -9,7 +9,10 @@ package org.vt.networking.common;
  *
  */
 public class DataConfig {
-	public static int UDP_MAX_SIZE = 500; // maximum of the size can be sent in one segment
+	public static final long TIMEOUT = 100;
+	public static final double LOSTPROBALITY = 0.001;
+	public static final int WINDOW_SIZE = 15;
+	public static int UDP_MAX_SIZE = 450; // maximum of the size can be sent in one segment
 	public static int RECEIVED_PACKET_SIZE = 1024;
 	public static int MESSAGE_MAX_SIZE = 256 * 1000 - 6;
 	public static int identityId = -1;
@@ -19,8 +22,8 @@ public class DataConfig {
 	public static char NOT_LAST = '0';  // used for dataSegment ifLast flag
 	public static char SENT_DATA = '0'; //used to identify message as sent
 	public static char RESPONSE_DATA = '1'; //used to identify message as response
-	public static int seqnum = 0;
-	public static int MAX_SEQ_SIZE = (int)Math.ceil((double)(MESSAGE_MAX_SIZE + 6)/UDP_MAX_SIZE);
+	public static int seqnum = -1;
+	public static int MAX_SEQ_SIZE = 50000;
 	
 	public static int getNextIdentityId()
 	{
@@ -29,7 +32,7 @@ public class DataConfig {
 	
 	public static int getNextSeqnum()
 	{
-		return ++ seqnum;
+		return (++ seqnum)%MAX_SEQ_SIZE;
 	}
 	
 	
