@@ -52,6 +52,12 @@ public class UDPWrapper{
 		socket.send(packet);
 	}
 	
+	public void sendTo(byte[] sendData, int length, InetAddress ia, int port) throws Exception {
+		
+		DatagramPacket packet = new DatagramPacket(sendData, sendData.length, ia, port);
+		socket.send(packet);
+	}
+	
 	public  InetAddress getInetAddress(String hostName) throws Exception
     {
     	InetAddress iNetAddress = null;

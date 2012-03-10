@@ -14,7 +14,7 @@ public class DataConfig {
 	public static final int WINDOW_SIZE = 15;
 	public static int UDP_MAX_SIZE = 450; // maximum of the size can be sent in one segment
 	public static int RECEIVED_PACKET_SIZE = 1024;
-	public static int MESSAGE_MAX_SIZE = 256 * 1000 - 6;
+	public static int MESSAGE_MAX_SIZE = 450 * 1000 - 6;
 	public static int identityId = -1;
 	public static char COMMAND_FLAG = '0'; //used for message Flag
 	public static char DATA_FLAG = '1'; //used for message Flag

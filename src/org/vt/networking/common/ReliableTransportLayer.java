@@ -232,7 +232,7 @@ public class ReliableTransportLayer implements ILayer {
 	private boolean sendACkSegment(DataSegment segment, InetAddress ia, int port) throws Exception
 	{
 		byte[] sentData = segment.getBytes();
-		udpWrapper.sendTo(sentData, sentData.length, ia.getHostName(), port);
+		udpWrapper.sendTo(sentData, sentData.length, ia, port);
 		return true;
 	}
 	
